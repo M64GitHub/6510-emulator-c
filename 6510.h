@@ -79,9 +79,6 @@ char CPU_Run_Step(CPU *cpu);
 
 // cpu addressing mode functions
 
-// return the number of cycles that were used
-signed int CPU_Execute(CPU *cpu);
-
 unsigned short CPU_AddrZeroPage(CPU *cpu);
 unsigned short CPU_AddrZeroPageX(CPU *cpu);
 unsigned short CPU_AddrZeroPageY(CPU *cpu);
