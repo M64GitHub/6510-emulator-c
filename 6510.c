@@ -143,7 +143,7 @@ unsigned short CPU_PopWordFromStack(CPU *cpu)
 void CPU_SetZeroAndNegativeFlags(CPU *cpu, unsigned char Register)
 {
     cpu->Flags.Z = (Register == 0);
-    cpu->Flags.N = (Register & NegativeFlagBit) > 0;
+    cpu->Flags.N = (Register & FB_Negative) > 0;
 }
 
 unsigned short CPU_LoadPrg(CPU *cpu, const char *Program,
@@ -304,15 +304,14 @@ void CPU_BranchIf(CPU *cpu, char Test, char Expected)
 
 void CPU_ADC(CPU *cpu, char Operand)
 {
-    char AreSignBitsTheSame = !((cpu->A ^ Operand) & NegativeFlagBit);
+    char AreSignBitsTheSame = !((cpu->A ^ Operand) & FB_Negative);
     unsigned short Sum = cpu->A;
     Sum += Operand;
     Sum += cpu->Flags.C;
     cpu->A = (Sum & 0xFF);
     CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
     cpu->Flags.C = Sum > 0xFF;
-    cpu->Flags.V =
-        AreSignBitsTheSame && ((cpu->A ^ Operand) & NegativeFlagBit);
+    cpu->Flags.V = AreSignBitsTheSame && ((cpu->A ^ Operand) & FB_Negative);
 };
 
 void CPU_SBC(CPU *cpu, char Operand)
@@ -323,14 +322,14 @@ void CPU_SBC(CPU *cpu, char Operand)
 void CPU_RegisterCompare(CPU *cpu, char Operand, char RegisterValue)
 {
     char Temp = RegisterValue - Operand;
-    cpu->Flags.N = (Temp & NegativeFlagBit) > 0;
+    cpu->Flags.N = (Temp & FB_Negative) > 0;
     cpu->Flags.Z = RegisterValue == Operand;
     cpu->Flags.C = RegisterValue >= Operand;
 };
 
 char CPU_ASL(CPU *cpu, char Operand)
 {
-    cpu->Flags.C = (Operand & NegativeFlagBit) > 0;
+    cpu->Flags.C = (Operand & FB_Negative) > 0;
     char Result = Operand << 1;
     CPU_SetZeroAndNegativeFlags(cpu, Result);
     cpu->cycles_executed++;
@@ -339,7 +338,7 @@ char CPU_ASL(CPU *cpu, char Operand)
 
 char CPU_LSR(CPU *cpu, char Operand)
 {
-    cpu->Flags.C = (Operand & ZeroBit) > 0;
+    cpu->Flags.C = (Operand & FB_Zero) > 0;
     char Result = Operand >> 1;
     CPU_SetZeroAndNegativeFlags(cpu, Result);
     cpu->cycles_executed++;
@@ -348,8 +347,8 @@ char CPU_LSR(CPU *cpu, char Operand)
 
 char CPU_ROL(CPU *cpu, char Operand)
 {
-    char NewBit0 = cpu->Flags.C ? ZeroBit : 0;
-    cpu->Flags.C = (Operand & NegativeFlagBit) > 0;
+    char NewBit0 = cpu->Flags.C ? FB_Zero : 0;
+    cpu->Flags.C = (Operand & FB_Negative) > 0;
     Operand = Operand << 1;
     Operand |= NewBit0;
     CPU_SetZeroAndNegativeFlags(cpu, Operand);
@@ -359,10 +358,10 @@ char CPU_ROL(CPU *cpu, char Operand)
 
 char CPU_ROR(CPU *cpu, char Operand)
 {
-    char OldBit0 = (Operand & ZeroBit) > 0;
+    char OldBit0 = (Operand & FB_Zero) > 0;
     Operand = Operand >> 1;
     if (cpu->Flags.C) {
-        Operand |= NegativeFlagBit;
+        Operand |= FB_Negative;
     }
     cpu->cycles_executed++;
     cpu->Flags.C = OldBit0;
@@ -372,16 +371,44 @@ char CPU_ROR(CPU *cpu, char Operand)
 
 void CPU_PushPSToStack(CPU *cpu)
 {
-    char PSStack = cpu->PS | BreakFlagBit | UnusedFlagBit;
+    char PSStack = cpu->PS | FB_Break | FB_Unused;
     CPU_PushByteOntoStack(cpu, PSStack);
 };
 
 void CPU_PopPSFromStack(CPU *cpu)
 {
     cpu->PS = CPU_PopByteFromStack(cpu);
+    CPU_PSToFlags(cpu);
     cpu->Flags.B = 0;
     cpu->Flags.Unused = 0;
 };
+
+void CPU_PSToFlags(CPU *cpu)
+{
+    cpu->Flags.Unused = (cpu->PS & FB_Unused) != 0;
+    cpu->Flags.C = (cpu->PS & FB_Carry) != 0;
+    cpu->Flags.Z = (cpu->PS & FB_Zero) != 0;
+    cpu->Flags.I = (cpu->PS & FB_InterruptDisable) != 0;
+    cpu->Flags.D = (cpu->PS & FB_Decimal) != 0;
+    cpu->Flags.B = (cpu->PS & FB_Break) != 0;
+    cpu->Flags.V = (cpu->PS & FB_Overflow) != 0;
+    cpu->Flags.N = (cpu->PS & FB_Negative) != 0;
+}
+
+void CPU_FlagsTOPS(CPU *cpu)
+{
+    char ps = 0x00;
+    if (cpu->Flags.Unused) ps |= FB_Unused;
+    if (cpu->Flags.C) ps |= FB_Unused;
+    if (cpu->Flags.Z) ps |= FB_Zero;
+    if (cpu->Flags.I) ps |= FB_InterruptDisable;
+    if (cpu->Flags.D) ps |= FB_Decimal;
+    if (cpu->Flags.B) ps |= FB_Break;
+    if (cpu->Flags.V) ps |= FB_Overflow;
+    if (cpu->Flags.N) ps |= FB_Negative;
+
+    cpu->PS = ps;
+}
 
 // -- -------------------------------------------------------------------- --
 
@@ -493,15 +520,15 @@ char CPU_Run_Step(CPU *cpu)
         unsigned short Address = CPU_AddrZeroPage(cpu);
         char Value = CPU_ReadByte(cpu, Address);
         cpu->Flags.Z = !(cpu->A & Value);
-        cpu->Flags.N = (Value & NegativeFlagBit) != 0;
-        cpu->Flags.V = (Value & OverflowFlagBit) != 0;
+        cpu->Flags.N = (Value & FB_Negative) != 0;
+        cpu->Flags.V = (Value & FB_Overflow) != 0;
     } break;
     case INSN_BIT_ABS: {
         unsigned short Address = CPU_AddrAbsolute(cpu);
         char Value = CPU_ReadByte(cpu, Address);
         cpu->Flags.Z = !(cpu->A & Value);
-        cpu->Flags.N = (Value & NegativeFlagBit) != 0;
-        cpu->Flags.V = (Value & OverflowFlagBit) != 0;
+        cpu->Flags.N = (Value & FB_Negative) != 0;
+        cpu->Flags.V = (Value & FB_Overflow) != 0;
     } break;
     case INSN_LDA_IM: {
         cpu->A = CPU_FetchByte(cpu);

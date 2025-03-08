@@ -3,14 +3,14 @@
 #define M64_6510_EMU_H
 
 typedef struct S_CPUFlags {
-    unsigned char C : 1;      // 0: Carry Flag
-    unsigned char Z : 1;      // 1: Zero Flag
-    unsigned char I : 1;      // 2: Interrupt disable
-    unsigned char D : 1;      // 3: Decimal mode
-    unsigned char B : 1;      // 4: Break
-    unsigned char Unused : 1; // 5: Unused
-    unsigned char V : 1;      // 6: Overflow
-    unsigned char N : 1;      // 7: Negative
+    unsigned char C;      // 0: Carry Flag
+    unsigned char Z;      // 1: Zero Flag
+    unsigned char I;      // 2: Interrupt disable
+    unsigned char D;      // 3: Decimal mode
+    unsigned char B;      // 4: Break
+    unsigned char Unused; // 5: Unused
+    unsigned char V;      // 6: Overflow
+    unsigned char N;      // 7: Negative
 } CPUFlags_t;
 
 typedef struct S_Mem64k {
@@ -25,10 +25,8 @@ typedef struct S_CPU {
 
     unsigned char A, X, Y; // registers
 
-    union {
-        char PS;
-        CPUFlags_t Flags;
-    };
+    char PS;
+    CPUFlags_t Flags;
 
     MEM64K_t memdata;
     MEM64K_t *mem;
@@ -41,6 +39,8 @@ typedef struct S_CPU {
 // general cpu functions
 void CPU_Reset(CPU *cpu);
 void CPU_Init(CPU *cpu, unsigned short PC_init);
+void CPU_PSToFlags(CPU *cpu);
+void CPU_FlagsToPS(CPU *cpu);
 unsigned char FetchByte(CPU *cpu);
 char CPU_FetchSByte(CPU *cpu);
 unsigned short CPU_FetchWord(CPU *cpu);
@@ -272,11 +272,13 @@ unsigned short CPU_AddrIndirectY_6(CPU *cpu);
 #define INSN_RTI ((unsigned char)0x40)
 
 // Status bits
-#define NegativeFlagBit ((unsigned char)0b10000000)
-#define OverflowFlagBit ((unsigned char)0b01000000)
-#define BreakFlagBit ((unsigned char)0b000010000)
-#define UnusedFlagBit ((unsigned char)0b000100000)
-#define InterruptDisableFlagBit ((unsigned char)0b000000100)
-#define ZeroBit ((unsigned char)0b00000001)
+#define FB_Negative ((unsigned char)0b10000000)
+#define FB_Overflow ((unsigned char)0b01000000)
+#define FB_Unused ((unsigned char)0b000100000)
+#define FB_Break ((unsigned char)0b000010000)
+#define FB_Decimal ((unsigned char)0b000001000)
+#define FB_InterruptDisable ((unsigned char)0b000000100)
+#define FB_Zero ((unsigned char)0b000000010)
+#define FB_Carry ((unsigned char)0b000000001)
 
 #endif
