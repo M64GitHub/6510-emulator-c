@@ -371,6 +371,7 @@ char CPU_ROR(CPU *cpu, char Operand)
 
 void CPU_PushPSToStack(CPU *cpu)
 {
+    CPU_FlagsToPS(cpu);
     char PSStack = cpu->PS | FB_Break | FB_Unused;
     CPU_PushByteOntoStack(cpu, PSStack);
 };
@@ -395,7 +396,7 @@ void CPU_PSToFlags(CPU *cpu)
     cpu->Flags.N = (cpu->PS & FB_Negative) != 0;
 }
 
-void CPU_FlagsTOPS(CPU *cpu)
+void CPU_FlagsToPS(CPU *cpu)
 {
     char ps = 0x00;
     if (cpu->Flags.Unused) ps |= FB_Unused;

@@ -39,8 +39,8 @@ typedef struct S_CPU {
 // general cpu functions
 void CPU_Reset(CPU *cpu);
 void CPU_Init(CPU *cpu, unsigned short PC_init);
-void CPU_PSToFlags(CPU *cpu);
 void CPU_FlagsToPS(CPU *cpu);
+void CPU_PSToFlags(CPU *cpu);
 unsigned char FetchByte(CPU *cpu);
 char CPU_FetchSByte(CPU *cpu);
 unsigned short CPU_FetchWord(CPU *cpu);
