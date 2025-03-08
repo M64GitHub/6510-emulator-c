@@ -25,7 +25,7 @@ typedef struct S_CPU {
 
     unsigned char A, X, Y; // registers
 
-    char PS;
+    char Status;
     CPUFlags_t Flags;
 
     MEM64K_t memdata;
@@ -41,7 +41,8 @@ void CPU_Reset(CPU *cpu);
 void CPU_Init(CPU *cpu, unsigned short PC_init);
 void CPU_FlagsToPS(CPU *cpu);
 void CPU_PSToFlags(CPU *cpu);
-char CPU_FetchSByte(CPU *cpu);
+char CPU_FetchByte(CPU *cpu);
+unsigned char CPU_FetchUByte(CPU *cpu);
 unsigned short CPU_FetchWord(CPU *cpu);
 unsigned char CPU_ReadByte(CPU *cpu, unsigned short Address);
 unsigned short CPU_ReadWord(CPU *cpu, unsigned short Address);
@@ -49,13 +50,11 @@ void CPU_WriteByte(CPU *cpu, unsigned char Value, unsigned short Address);
 void CPU_WriteWord(CPU *cpu, unsigned short Value, unsigned short Address);
 unsigned short CPU_SPToAddress(CPU *cpu);
 void CPU_PushWordToStack(CPU *cpu, unsigned short Value);
-void CPU_PushPCMinusOneToStack(CPU *cpu);
-void CPU_PushPCPlusOneToStack(CPU *cpu);
 void CPU_PushPCToStack(CPU *cpu);
 void CPU_PushByteOntoStack(CPU *cpu, unsigned char Value);
 unsigned char CPU_PopByteFromStack(CPU *cpu);
 unsigned short CPU_PopWordFromStack(CPU *cpu);
-void CPU_SetZeroAndNegativeFlags(CPU *cpu, unsigned char Register);
+void CPU_UpdateFlags(CPU *cpu, unsigned char Register);
 unsigned short CPU_LoadPrg(CPU *cpu, const char *Program,
                            unsigned int NumBytes);
 
@@ -66,7 +65,7 @@ void CPU_LoadRegister(CPU *cpu, unsigned short Address,
 void CPU_And(CPU *cpu, unsigned short Address);
 void CPU_Ora(CPU *cpu, unsigned short Address);
 void CPU_Xor(CPU *cpu, unsigned short Address);
-void CPU_BranchIf(CPU *cpu, char Test, char Expected);
+void CPU_Branch(CPU *cpu, char Test, char Expected);
 void CPU_ADC(CPU *cpu, char Operand);
 void CPU_SBC(CPU *cpu, char Operand);
 char CPU_ASL(CPU *cpu, char Operand);

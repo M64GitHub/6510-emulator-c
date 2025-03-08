@@ -31,7 +31,7 @@ void CPU_Reset(CPU *cpu)
     CPU_Init(cpu, 0xFFFC);
 }
 
-unsigned char CPU_FetchByte(CPU *cpu)
+unsigned char CPU_FetchUByte(CPU *cpu)
 {
     unsigned char Data = cpu->mem->Data[cpu->PC];
     cpu->PC++;
@@ -39,9 +39,9 @@ unsigned char CPU_FetchByte(CPU *cpu)
     return Data;
 }
 
-char CPU_FetchSByte(CPU *cpu)
+char CPU_FetchByte(CPU *cpu)
 {
-    return CPU_FetchByte(cpu);
+    return CPU_FetchUByte(cpu);
 }
 
 unsigned short CPU_FetchWord(CPU *cpu)
@@ -97,16 +97,6 @@ void CPU_PushWordToStack(CPU *cpu, unsigned short Value)
     cpu->SP--;
 }
 
-void CPU_PushPCMinusOneToStack(CPU *cpu)
-{
-    CPU_PushWordToStack(cpu, cpu->PC - 1);
-}
-
-void CPU_PushPCPlusOneToStack(CPU *cpu)
-{
-    CPU_PushWordToStack(cpu, cpu->PC + 1);
-}
-
 void CPU_PushPCToStack(CPU *cpu)
 {
     CPU_PushWordToStack(cpu, cpu->PC);
@@ -140,7 +130,7 @@ unsigned short CPU_PopWordFromStack(CPU *cpu)
     return ValueFromStack;
 }
 
-void CPU_SetZeroAndNegativeFlags(CPU *cpu, unsigned char Register)
+void CPU_UpdateFlags(CPU *cpu, unsigned char Register)
 {
     cpu->Flags.Z = (Register == 0);
     cpu->Flags.N = (Register & FB_Negative) > 0;
@@ -166,13 +156,13 @@ unsigned short CPU_LoadPrg(CPU *cpu, const char *Program,
 
 unsigned short CPU_AddrZeroPage(CPU *cpu)
 {
-    char ZeroPageAddr = CPU_FetchByte(cpu);
+    char ZeroPageAddr = CPU_FetchUByte(cpu);
     return ZeroPageAddr;
 }
 
 unsigned short CPU_AddrZeroPageX(CPU *cpu)
 {
-    char ZeroPageAddr = CPU_FetchByte(cpu);
+    char ZeroPageAddr = CPU_FetchUByte(cpu);
     ZeroPageAddr += cpu->X;
     cpu->cycles_executed++;
     return ZeroPageAddr;
@@ -180,7 +170,7 @@ unsigned short CPU_AddrZeroPageX(CPU *cpu)
 
 unsigned short CPU_AddrZeroPageY(CPU *cpu)
 {
-    char ZeroPageAddr = CPU_FetchByte(cpu);
+    char ZeroPageAddr = CPU_FetchUByte(cpu);
     ZeroPageAddr += cpu->Y;
     cpu->cycles_executed++;
     return ZeroPageAddr;
@@ -234,7 +224,7 @@ unsigned short CPU_AddrAbsoluteY_5(CPU *cpu)
 
 unsigned short CPU_AddrIndirectX(CPU *cpu)
 {
-    char ZPAddress = CPU_FetchByte(cpu);
+    char ZPAddress = CPU_FetchUByte(cpu);
     ZPAddress += cpu->X;
     cpu->cycles_executed++;
     unsigned short EffectiveAddr = CPU_ReadWord(cpu, ZPAddress);
@@ -243,7 +233,7 @@ unsigned short CPU_AddrIndirectX(CPU *cpu)
 
 unsigned short CPU_AddrIndirectY(CPU *cpu)
 {
-    char ZPAddress = CPU_FetchByte(cpu);
+    char ZPAddress = CPU_FetchUByte(cpu);
     unsigned short EffectiveAddr = CPU_ReadWord(cpu, ZPAddress);
     unsigned short EffectiveAddrY = EffectiveAddr + cpu->Y;
     char CrossedPageBoundary = (EffectiveAddr ^ EffectiveAddrY) >> 8;
@@ -255,7 +245,7 @@ unsigned short CPU_AddrIndirectY(CPU *cpu)
 
 unsigned short CPU_AddrIndirectY_6(CPU *cpu)
 {
-    char ZPAddress = CPU_FetchByte(cpu);
+    char ZPAddress = CPU_FetchUByte(cpu);
     unsigned short EffectiveAddr = CPU_ReadWord(cpu, ZPAddress);
     unsigned short EffectiveAddrY = EffectiveAddr + cpu->Y;
     cpu->cycles_executed++;
@@ -266,30 +256,30 @@ void CPU_LoadRegister(CPU *cpu, unsigned short Address,
                       unsigned char *Register)
 {
     *Register = CPU_ReadByte(cpu, Address);
-    CPU_SetZeroAndNegativeFlags(cpu, *Register);
+    CPU_UpdateFlags(cpu, *Register);
 };
 
 void CPU_And(CPU *cpu, unsigned short Address)
 {
     cpu->A &= CPU_ReadByte(cpu, Address);
-    CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+    CPU_UpdateFlags(cpu, cpu->A);
 };
 
 void CPU_Ora(CPU *cpu, unsigned short Address)
 {
     cpu->A |= CPU_ReadByte(cpu, Address);
-    CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+    CPU_UpdateFlags(cpu, cpu->A);
 };
 
 void CPU_Xor(CPU *cpu, unsigned short Address)
 {
     cpu->A ^= CPU_ReadByte(cpu, Address);
-    CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+    CPU_UpdateFlags(cpu, cpu->A);
 };
 
-void CPU_BranchIf(CPU *cpu, char Test, char Expected)
+void CPU_Branch(CPU *cpu, char Test, char Expected)
 {
-    char Offset = CPU_FetchSByte(cpu);
+    char Offset = CPU_FetchByte(cpu);
     if (Test == Expected) {
         const unsigned short PCOld = cpu->PC;
         cpu->PC += Offset;
@@ -309,7 +299,7 @@ void CPU_ADC(CPU *cpu, char Operand)
     Sum += Operand;
     Sum += cpu->Flags.C;
     cpu->A = (Sum & 0xFF);
-    CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+    CPU_UpdateFlags(cpu, cpu->A);
     cpu->Flags.C = Sum > 0xFF;
     cpu->Flags.V = AreSignBitsTheSame && ((cpu->A ^ Operand) & FB_Negative);
 };
@@ -331,7 +321,7 @@ char CPU_ASL(CPU *cpu, char Operand)
 {
     cpu->Flags.C = (Operand & FB_Negative) > 0;
     char Result = Operand << 1;
-    CPU_SetZeroAndNegativeFlags(cpu, Result);
+    CPU_UpdateFlags(cpu, Result);
     cpu->cycles_executed++;
     return Result;
 };
@@ -340,7 +330,7 @@ char CPU_LSR(CPU *cpu, char Operand)
 {
     cpu->Flags.C = (Operand & FB_Zero) > 0;
     char Result = Operand >> 1;
-    CPU_SetZeroAndNegativeFlags(cpu, Result);
+    CPU_UpdateFlags(cpu, Result);
     cpu->cycles_executed++;
     return Result;
 };
@@ -351,7 +341,7 @@ char CPU_ROL(CPU *cpu, char Operand)
     cpu->Flags.C = (Operand & FB_Negative) > 0;
     Operand = Operand << 1;
     Operand |= NewBit0;
-    CPU_SetZeroAndNegativeFlags(cpu, Operand);
+    CPU_UpdateFlags(cpu, Operand);
     cpu->cycles_executed++;
     return Operand;
 };
@@ -365,20 +355,20 @@ char CPU_ROR(CPU *cpu, char Operand)
     }
     cpu->cycles_executed++;
     cpu->Flags.C = OldBit0;
-    CPU_SetZeroAndNegativeFlags(cpu, Operand);
+    CPU_UpdateFlags(cpu, Operand);
     return Operand;
 };
 
 void CPU_PushPSToStack(CPU *cpu)
 {
     CPU_FlagsToPS(cpu);
-    char PSStack = cpu->PS | FB_Break | FB_Unused;
+    char PSStack = cpu->Status | FB_Break | FB_Unused;
     CPU_PushByteOntoStack(cpu, PSStack);
 };
 
 void CPU_PopPSFromStack(CPU *cpu)
 {
-    cpu->PS = CPU_PopByteFromStack(cpu);
+    cpu->Status = CPU_PopByteFromStack(cpu);
     CPU_PSToFlags(cpu);
     cpu->Flags.B = 0;
     cpu->Flags.Unused = 0;
@@ -386,14 +376,14 @@ void CPU_PopPSFromStack(CPU *cpu)
 
 void CPU_PSToFlags(CPU *cpu)
 {
-    cpu->Flags.Unused = (cpu->PS & FB_Unused) != 0;
-    cpu->Flags.C = (cpu->PS & FB_Carry) != 0;
-    cpu->Flags.Z = (cpu->PS & FB_Zero) != 0;
-    cpu->Flags.I = (cpu->PS & FB_InterruptDisable) != 0;
-    cpu->Flags.D = (cpu->PS & FB_Decimal) != 0;
-    cpu->Flags.B = (cpu->PS & FB_Break) != 0;
-    cpu->Flags.V = (cpu->PS & FB_Overflow) != 0;
-    cpu->Flags.N = (cpu->PS & FB_Negative) != 0;
+    cpu->Flags.Unused = (cpu->Status & FB_Unused) != 0;
+    cpu->Flags.C = (cpu->Status & FB_Carry) != 0;
+    cpu->Flags.Z = (cpu->Status & FB_Zero) != 0;
+    cpu->Flags.I = (cpu->Status & FB_InterruptDisable) != 0;
+    cpu->Flags.D = (cpu->Status & FB_Decimal) != 0;
+    cpu->Flags.B = (cpu->Status & FB_Break) != 0;
+    cpu->Flags.V = (cpu->Status & FB_Overflow) != 0;
+    cpu->Flags.N = (cpu->Status & FB_Negative) != 0;
 }
 
 void CPU_FlagsToPS(CPU *cpu)
@@ -408,7 +398,7 @@ void CPU_FlagsToPS(CPU *cpu)
     if (cpu->Flags.V) ps |= FB_Overflow;
     if (cpu->Flags.N) ps |= FB_Negative;
 
-    cpu->PS = ps;
+    cpu->Status = ps;
 }
 
 // -- -------------------------------------------------------------------- --
@@ -416,21 +406,21 @@ void CPU_FlagsToPS(CPU *cpu)
 char CPU_Run_Step(CPU *cpu)
 {
     unsigned int cycles_now = cpu->cycles_executed;
-    unsigned char opcode = CPU_FetchByte(cpu);
+    unsigned char opcode = CPU_FetchUByte(cpu);
     cpu->opcode_last = opcode;
 
     switch (opcode) {
     case INSN_AND_IM:
-        cpu->A &= CPU_FetchByte(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        cpu->A &= CPU_FetchUByte(cpu);
+        CPU_UpdateFlags(cpu, cpu->A);
         break;
     case INSN_ORA_IM:
-        cpu->A |= CPU_FetchByte(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        cpu->A |= CPU_FetchUByte(cpu);
+        CPU_UpdateFlags(cpu, cpu->A);
         break;
     case INSN_XOR_IM:
-        cpu->A ^= CPU_FetchByte(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        cpu->A ^= CPU_FetchUByte(cpu);
+        CPU_UpdateFlags(cpu, cpu->A);
         break;
     case INSN_AND_ZP: {
         unsigned short Address = CPU_AddrZeroPage(cpu);
@@ -532,16 +522,16 @@ char CPU_Run_Step(CPU *cpu)
         cpu->Flags.V = (Value & FB_Overflow) != 0;
     } break;
     case INSN_LDA_IM: {
-        cpu->A = CPU_FetchByte(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        cpu->A = CPU_FetchUByte(cpu);
+        CPU_UpdateFlags(cpu, cpu->A);
     } break;
     case INSN_LDX_IM: {
-        cpu->X = CPU_FetchByte(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->X);
+        cpu->X = CPU_FetchUByte(cpu);
+        CPU_UpdateFlags(cpu, cpu->X);
     } break;
     case INSN_LDY_IM: {
-        cpu->Y = CPU_FetchByte(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->Y);
+        cpu->Y = CPU_FetchUByte(cpu);
+        CPU_UpdateFlags(cpu, cpu->Y);
     } break;
     case INSN_LDA_ZP: {
         unsigned short Address = CPU_AddrZeroPage(cpu);
@@ -657,7 +647,7 @@ char CPU_Run_Step(CPU *cpu)
     } break;
     case INSN_JSR: {
         unsigned short SubAddr = CPU_FetchWord(cpu);
-        CPU_PushPCMinusOneToStack(cpu);
+        CPU_PushWordToStack(cpu, cpu->PC - 1);
         cpu->PC = SubAddr;
         cpu->cycles_executed++;
     } break;
@@ -678,7 +668,7 @@ char CPU_Run_Step(CPU *cpu)
     case INSN_TSX: {
         cpu->X = cpu->SP;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->X);
+        CPU_UpdateFlags(cpu, cpu->X);
     } break;
     case INSN_TXS: {
         cpu->SP = cpu->X;
@@ -689,7 +679,7 @@ char CPU_Run_Step(CPU *cpu)
     } break;
     case INSN_PLA: {
         cpu->A = CPU_PopByteFromStack(cpu);
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        CPU_UpdateFlags(cpu, cpu->A);
         cpu->cycles_executed++;
     } break;
     case INSN_PHP: {
@@ -702,42 +692,42 @@ char CPU_Run_Step(CPU *cpu)
     case INSN_TAX: {
         cpu->X = cpu->A;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->X);
+        CPU_UpdateFlags(cpu, cpu->X);
     } break;
     case INSN_TAY: {
         cpu->Y = cpu->A;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->Y);
+        CPU_UpdateFlags(cpu, cpu->Y);
     } break;
     case INSN_TXA: {
         cpu->A = cpu->X;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        CPU_UpdateFlags(cpu, cpu->A);
     } break;
     case INSN_TYA: {
         cpu->A = cpu->Y;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->A);
+        CPU_UpdateFlags(cpu, cpu->A);
     } break;
     case INSN_INX: {
         cpu->X++;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->X);
+        CPU_UpdateFlags(cpu, cpu->X);
     } break;
     case INSN_INY: {
         cpu->Y++;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->Y);
+        CPU_UpdateFlags(cpu, cpu->Y);
     } break;
     case INSN_DEX: {
         cpu->X--;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->X);
+        CPU_UpdateFlags(cpu, cpu->X);
     } break;
     case INSN_DEY: {
         cpu->Y--;
         cpu->cycles_executed++;
-        CPU_SetZeroAndNegativeFlags(cpu, cpu->Y);
+        CPU_UpdateFlags(cpu, cpu->Y);
     } break;
     case INSN_DEC_ZP: {
         unsigned short Address = CPU_AddrZeroPage(cpu);
@@ -745,7 +735,7 @@ char CPU_Run_Step(CPU *cpu)
         Value--;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_DEC_ZPX: {
         unsigned short Address = CPU_AddrZeroPageX(cpu);
@@ -753,7 +743,7 @@ char CPU_Run_Step(CPU *cpu)
         Value--;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_DEC_ABS: {
         unsigned short Address = CPU_AddrAbsolute(cpu);
@@ -761,7 +751,7 @@ char CPU_Run_Step(CPU *cpu)
         Value--;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_DEC_ABSX: {
         unsigned short Address = CPU_AddrAbsoluteX_5(cpu);
@@ -769,7 +759,7 @@ char CPU_Run_Step(CPU *cpu)
         Value--;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_INC_ZP: {
         unsigned short Address = CPU_AddrZeroPage(cpu);
@@ -777,7 +767,7 @@ char CPU_Run_Step(CPU *cpu)
         Value++;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_INC_ZPX: {
         unsigned short Address = CPU_AddrZeroPageX(cpu);
@@ -785,7 +775,7 @@ char CPU_Run_Step(CPU *cpu)
         Value++;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_INC_ABS: {
         unsigned short Address = CPU_AddrAbsolute(cpu);
@@ -793,7 +783,7 @@ char CPU_Run_Step(CPU *cpu)
         Value++;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_INC_ABSX: {
         unsigned short Address = CPU_AddrAbsoluteX_5(cpu);
@@ -801,31 +791,31 @@ char CPU_Run_Step(CPU *cpu)
         Value++;
         cpu->cycles_executed++;
         CPU_WriteByte(cpu, Value, Address);
-        CPU_SetZeroAndNegativeFlags(cpu, Value);
+        CPU_UpdateFlags(cpu, Value);
     } break;
     case INSN_BEQ: {
-        CPU_BranchIf(cpu, cpu->Flags.Z, 1);
+        CPU_Branch(cpu, cpu->Flags.Z, 1);
     } break;
     case INSN_BNE: {
-        CPU_BranchIf(cpu, cpu->Flags.Z, 0);
+        CPU_Branch(cpu, cpu->Flags.Z, 0);
     } break;
     case INSN_BCS: {
-        CPU_BranchIf(cpu, cpu->Flags.C, 1);
+        CPU_Branch(cpu, cpu->Flags.C, 1);
     } break;
     case INSN_BCC: {
-        CPU_BranchIf(cpu, cpu->Flags.C, 0);
+        CPU_Branch(cpu, cpu->Flags.C, 0);
     } break;
     case INSN_BMI: {
-        CPU_BranchIf(cpu, cpu->Flags.N, 1);
+        CPU_Branch(cpu, cpu->Flags.N, 1);
     } break;
     case INSN_BPL: {
-        CPU_BranchIf(cpu, cpu->Flags.N, 0);
+        CPU_Branch(cpu, cpu->Flags.N, 0);
     } break;
     case INSN_BVC: {
-        CPU_BranchIf(cpu, cpu->Flags.V, 0);
+        CPU_Branch(cpu, cpu->Flags.V, 0);
     } break;
     case INSN_BVS: {
-        CPU_BranchIf(cpu, cpu->Flags.V, 1);
+        CPU_Branch(cpu, cpu->Flags.V, 1);
     } break;
     case INSN_CLC: {
         cpu->Flags.C = 0;
@@ -894,11 +884,11 @@ char CPU_Run_Step(CPU *cpu)
         CPU_ADC(cpu, Operand);
     } break;
     case INSN_ADC: {
-        char Operand = CPU_FetchByte(cpu);
+        char Operand = CPU_FetchUByte(cpu);
         CPU_ADC(cpu, Operand);
     } break;
     case INSN_SBC: {
-        char Operand = CPU_FetchByte(cpu);
+        char Operand = CPU_FetchUByte(cpu);
         CPU_SBC(cpu, Operand);
     } break;
     case INSN_SBC_ABS: {
@@ -937,11 +927,11 @@ char CPU_Run_Step(CPU *cpu)
         CPU_SBC(cpu, Operand);
     } break;
     case INSN_CPX: {
-        char Operand = CPU_FetchByte(cpu);
+        char Operand = CPU_FetchUByte(cpu);
         CPU_RegisterCompare(cpu, Operand, cpu->X);
     } break;
     case INSN_CPY: {
-        char Operand = CPU_FetchByte(cpu);
+        char Operand = CPU_FetchUByte(cpu);
         CPU_RegisterCompare(cpu, Operand, cpu->Y);
     } break;
     case INSN_CPX_ZP: {
@@ -965,7 +955,7 @@ char CPU_Run_Step(CPU *cpu)
         CPU_RegisterCompare(cpu, Operand, cpu->Y);
     } break;
     case INSN_CMP: {
-        char Operand = CPU_FetchByte(cpu);
+        char Operand = CPU_FetchUByte(cpu);
         CPU_RegisterCompare(cpu, Operand, cpu->A);
     } break;
     case INSN_CMP_ZP: {
@@ -1112,7 +1102,7 @@ char CPU_Run_Step(CPU *cpu)
         CPU_WriteByte(cpu, Result, Address);
     } break;
     case INSN_BRK: {
-        CPU_PushPCPlusOneToStack(cpu);
+        CPU_PushWordToStack(cpu, cpu->PC + 1);
         CPU_PushPSToStack(cpu);
         cpu->PC = CPU_ReadWord(cpu, 0xFFFE);
         cpu->Flags.B = 1;
