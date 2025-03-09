@@ -328,7 +328,7 @@ char CPU_ASL(CPU *cpu, char Operand)
 
 char CPU_LSR(CPU *cpu, char Operand)
 {
-    cpu->Flags.C = (Operand & FB_Zero) > 0;
+    cpu->Flags.C = (Operand & FB_Carry) > 0;
     char Result = Operand >> 1;
     CPU_UpdateFlags(cpu, Result);
     cpu->cycles_executed++;
@@ -337,7 +337,7 @@ char CPU_LSR(CPU *cpu, char Operand)
 
 char CPU_ROL(CPU *cpu, char Operand)
 {
-    char NewBit0 = cpu->Flags.C ? FB_Zero : 0;
+    char NewBit0 = cpu->Flags.C ? FB_Carry : 0;
     cpu->Flags.C = (Operand & FB_Negative) > 0;
     Operand = Operand << 1;
     Operand |= NewBit0;
