@@ -390,7 +390,7 @@ void CPU_FlagsToPS(CPU *cpu)
 {
     char ps = 0x00;
     if (cpu->Flags.Unused) ps |= FB_Unused;
-    if (cpu->Flags.C) ps |= FB_Unused;
+    if (cpu->Flags.C) ps |= FB_Carry;
     if (cpu->Flags.Z) ps |= FB_Zero;
     if (cpu->Flags.I) ps |= FB_InterruptDisable;
     if (cpu->Flags.D) ps |= FB_Decimal;
